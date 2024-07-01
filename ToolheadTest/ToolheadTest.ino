@@ -6,11 +6,11 @@
 Servo axis;  // create servo object to control a servo
 
 RF24 radio(7, 8); // CE, CSN
-const byte addresses[][6] = {"0001", "0002"};
+const byte addresses[][6] = {"00001", "00002"};
 bool EndStopState = 0;
 bool buttonState = 0; // Declare and initialize buttonState
-const startCommand = 0;
-const stopCommand = 1;
+const int startCommand = 0;
+const int stopCommand = 1;
 
 
 const int limitSwitchPin = 2; // Limit switch pin
@@ -23,7 +23,7 @@ struct Data_Package {
   int f; // third value
 };
 Data_Package data; //Create a variable with the above structure
-
+int testval;
 int type;
 
 void setup() {
@@ -40,11 +40,11 @@ void loop() {
   delay(5);
   radio.startListening();
   if (radio.available()) {
-    radio.read(&data, sizeof(Data_Package)); // Read the whole data and store it into the 'data' structure
+    radio.read(&testval, sizeof(testval)); // Read the whole data and store it into the 'data' structure
     // Action check endstop
-    type = data.t;
+    type = 12;
 
-    switch (type) {
+    switch (testval) {
       // Limitswitch
       case 11:
         while (digitalRead(limitSwitchPin) == HIGH) {
@@ -59,19 +59,44 @@ void loop() {
       // move 4th axis
       case 12:
         // Add your code here for case 12
+          int returnval;
+        if (digitalRead(limitSwitchPin) == HIGH) {
+          radio.stopListening();
+          returnval = 111;
+          radio.write(&returnval, sizeof(returnval));
+          radio.startListening();
+        } else
+        if (digitalRead(limitSwitchPin) == LOW) {
+        radio.stopListening();
+        returnval = 222;
+        radio.write(&returnval, sizeof(returnval));
+        radio.startListening();
+        } else {
+          radio.stopListening();
+          returnval = 0;
+          radio.write(&returnval, sizeof(returnval));
+          radio.startListening();
+        }
+
         break;
+        default:
+          radio.stopListening();
+          returnval = 120;
+          radio.write(&returnval, sizeof(returnval));
+          radio.startListening();
+          break;
     }
 
     delay(5);
-    radio.stopListening();
-    EndStopState = 0;
-    radio.write(&EndStopState, sizeof(EndStopState));
+    // radio.stopListening();
+    // EndStopState = 0;
+    // radio.write(&EndStopState, sizeof(EndStopState));
   }
 
-  axis.write(0);  // tell servo to go to a particular angle
-  delay(2000);
-  axis.write(45);  // tell servo to go to a particular angle
-  delay(2000);
-  axis.write(90);  // tell servo to go to a particular angle
-  delay(2000);
+  // axis.write(0);  // tell servo to go to a particular angle
+  // delay(2000);
+  // axis.write(45);  // tell servo to go to a particular angle
+  // delay(2000);
+  // axis.write(90);  // tell servo to go to a particular angle
+  // delay(2000);
 }

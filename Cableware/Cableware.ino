@@ -5,11 +5,11 @@
 #include <SPI.h>
 #include <RF24.h>
 
-#define NUM_STEPPERS 3; // Number of stepper motors
+int NUM_STEPPERS = 3; // Number of stepper motors
 
 // Define Radio transmission
 RF24 radio(7, 8); // CE, CSN pins
-const byte addresses[][6] = {"0001", "0002"};
+const byte addresses[][6] = {"00001", "00002"};
 int startCommand = 0; // Endschalter initialisieren
 int stopCommand = 1;
 bool startCommandSent = false;
@@ -318,12 +318,25 @@ void loop() {
       break;
         // Rücksetzen auf 0 sollte wegfallen, da Homing nur einmalig ausgeführt wird
         // currentMotor = 0;
-      }
+    case 12:
+      delay(5);
+
+      radio.stopListening();
+      int testval = 12;
+
+      radio.write(&testval, sizeof(testval));
+
+      delay(5);
+      radio.startListening();
+      while (!radio.available());
+      int returnval;
+      radio.read(&returnval, sizeof(returnval));
+      Serial.print("Return value: ");
+      Serial.print(returnval);
+      break;
     default:
       Serial.println("Ungültige Option ausgewählt");
       break;
-  }
-    
-    
+    }
   } 
-}
+} 
