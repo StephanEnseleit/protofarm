@@ -32,7 +32,7 @@ def inverse_kinematics(x, y, z):
     # Berechnung der Gelenkwinkel für die gewünschte Endeffektorposition (x, y, z)
     r = np.sqrt(x**2 + y**2)
     theta1 = np.arctan2(y, x)
-    D = (r**2 + (z - l1)**2 - l2**2 - l3**2) / (2 * l2 * l3)
+    D = (r**2 + (z - l1)**2 - l2**2 - l3 **2) / (2 * l2 * l3)
     
     # Begrenzung für D
     D = np.clip(D, -1, 1)

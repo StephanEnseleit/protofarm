@@ -5,10 +5,14 @@
 #include <SPI.h>
 #include <RF24.h>
 
+#define NUM_STEPPERS 3; // Number of stepper motors
+
 // Define Radio transmission
 RF24 radio(7, 8); // CE, CSN pins
-const byte addresses[][6] = {"00001", "00002"};
-bool EndStopState = 0; // Endschalter initialisieren
+const byte addresses[][6] = {"0001", "0002"};
+int startCommand = 0; // Endschalter initialisieren
+int stopCommand = 1;
+bool startCommandSent = false;
 
 // Data package for radio transmission
 struct Data_Package {
@@ -24,12 +28,17 @@ AccelStepper stepper1(1, 2, 3); //  [A] (Typeof driver: with 2 pins, STEP, DIR)
 AccelStepper stepper2(1, 4, 5); //  [B] (Typeof driver: with 2 pins, STEP, DIR)
 AccelStepper stepper3(1, 6, 9); // [C] (Typeof driver: with 2 pins, STEP, DIR)
 
+AccelStepper steppers[] = {stepper1, stepper2, stepper3}; // Array of stepper motors
+
 MultiStepper steppersControl;  // Create instance of MultiStepper
 
 long gotoposition[3]; // An array to store the target positions for each stepper motor
 long values[3];
 long currentposition[3]; // An array that stores the current position (Steps)
+long stepsTaken[3]; // An array that stores the steps taken by each stepper motor
 int backinfo;
+
+int currentMotor = 0;
 
 // Definition der Robot Parameter
 float U = 53.88; // circumference of the winch
@@ -94,14 +103,17 @@ void setup() {
    // define steppers
   Serial.begin(9600); // Initialisierung der seriellen Kommunikation mit einer Baudrate von 9600 bps
   stepper1.setMaxSpeed(1000); // Set maximum speed value for the stepper
+  stepper1.setSpeed(500); // Set the speed
   stepper1.setAcceleration(10); // Set acceleration value for the stepper
   stepper1.setCurrentPosition(0); // Set the current position to 0 steps
   // [B]
   stepper2.setMaxSpeed(1000); // Set maximum speed value for the stepper
+  stepper2.setSpeed(500); // Set the speed
   stepper2.setAcceleration(10); // Set acceleration value for the stepper
   stepper2.setCurrentPosition(0); // Set the current position to 0 steps
   // [C]
   stepper3.setMaxSpeed(1000); // Set maximum speed value for the stepper
+  stepper3.setSpeed(500); // Set the speed
   stepper3.setAcceleration(10); // Set acceleration value for the stepper
   stepper3.setCurrentPosition(0); // Set the current position to 0 steps
 
@@ -257,38 +269,56 @@ void loop() {
       break;
 // TOOL Cases
     case 11:
-      // Testcase
-        delay(5);
-      // Data_Package mit daten Füllen
-        data.t = type;
-      // Initialisierung Toolhead
-        radio.stopListening();
-        radio.write(&data, sizeof(Data_Package));
-
-        delay(5);
-        radio.startListening();
-        while (!radio.available());
-        radio.read(&EndStopState, sizeof(EndStopState));
-
-        if (EndStopState == HIGH) {
-          // if endstop is triggered 
-          // surface touched
-          
+      // Homing Sequence
+      // go through all steppers
+      while (currentMotor < NUM_STEPPERS) {
+        // if the start command is not sent yet, send it
+        if (startCommandSent == false) {
+          currentposition[currentMotor] = steppers[currentMotor].currentPosition();
+          radio.stopListening();
+          data.t = 11;
+          data.d = startCommand;
+          radio.write(&data, sizeof(Data_Package));
+          radio.startListening();
+          steppers[currentMotor].runSpeed();
+          startCommandSent = true;
+        } else {
+          // if the start command is sent, check for the stop command
+          if (radio.available()) {
+            radio.read(&data, sizeof(Data_Package));
+            // if the stop command is received, stop the stepper motor
+            if (data.d == stopCommand) {
+              // Stop the stepper motor
+              steppers[currentMotor].stop();
+              // Calculate steps taken for the current stepper motor
+              stepsTaken[currentMotor] = steppers[currentMotor].currentPosition() - currentposition[currentMotor];
+              // move back to the initial position
+              steppers[currentMotor].moveTo(currentposition[currentMotor]);
+              steppers[currentMotor].setSpeed(500);
+              // Reset the startCommandSent flag to restart the loop for the next stepper motor
+              startCommandSent = false;
+              // Move to the next stepper motor
+              currentMotor++;
+            }
+          } else {
+            // if the stop command is not received, keep running the stepper motor
+            steppers[currentMotor].runSpeed();
           }
-        else {
-           gotoposition[0] = 1 * SU;
-            gotoposition[1] = 0;
-            gotoposition[2] = 0;
-            steppersControl.moveTo(gotoposition); // Calculates the required speed for all motors
-            steppersControl.runSpeedToPosition(); // Blocks until all steppers are in position
-          }
-        //gotoposition[0] = (int)(values[0] * SU);
-        //gotoposition[1] = (int)(values[1] * SU);
-        //gotoposition[2] = (int)(values[2] * SU);
-        //backinfo = gotoposition[0];
-        //Serial.print(backinfo); // Senden des ersten Elements des Arrays
-      // move relativ to position
+        }
+      } 
+      // if all stepper motors are homed, print the steps taken by each stepper motor
+      Serial.println("Homing Sequence completed");
+      Serial.println("Steps taken by each stepper motor:");
+      for (int i = 0; i < NUM_STEPPERS; i++) {
+        Serial.print("Stepper ");
+        Serial.print(i + 1);
+        Serial.print(": ");
+        Serial.println(stepsTaken[i]);
+      }
       break;
+        // Rücksetzen auf 0 sollte wegfallen, da Homing nur einmalig ausgeführt wird
+        // currentMotor = 0;
+      }
     default:
       Serial.println("Ungültige Option ausgewählt");
       break;

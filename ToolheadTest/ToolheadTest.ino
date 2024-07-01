@@ -6,9 +6,14 @@
 Servo axis;  // create servo object to control a servo
 
 RF24 radio(7, 8); // CE, CSN
-const byte addresses[][6] = {"00001", "00002"};
+const byte addresses[][6] = {"0001", "0002"};
 bool EndStopState = 0;
 bool buttonState = 0; // Declare and initialize buttonState
+const startCommand = 0;
+const stopCommand = 1;
+
+
+const int limitSwitchPin = 2; // Limit switch pin
 
 // Data package for radio transmission
 struct Data_Package {
@@ -28,6 +33,7 @@ void setup() {
   radio.openWritingPipe(addresses[0]); // 00001
   radio.openReadingPipe(1, addresses[1]); // 00002
   radio.setPALevel(RF24_PA_MIN);
+  pinMode(limitSwitchPin, INPUT_PULLUP); // Set pin 2 as input with pull-up resistor, this is the limit switch
 }
 
 void loop() {
@@ -41,7 +47,14 @@ void loop() {
     switch (type) {
       // Limitswitch
       case 11:
-        // Add your code here for case 11
+        while (digitalRead(limitSwitchPin) == HIGH) {
+          // Do nothing, just wait for the limit switch to be triggered
+        }
+        radio.stopListening();
+        data.t = 11;
+        data.d = stopCommand;
+        radio.write(&data, sizeof(Data_Package));
+        radio.startListening();
         break;
       // move 4th axis
       case 12:
